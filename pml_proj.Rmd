@@ -1,0 +1,99 @@
+---
+title: "PML project"
+author: "Parikshit Sanyal"
+date: "4 September 2018"
+output: html_document
+---
+
+---
+title: "Prediction of exercise type from physical measurements"
+author: "Parikshit Sanyal"
+date: "31 August 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(RANN)
+```
+
+## Loading the data
+
+We load the training dataset in the variable 'tr'. This is the dataset we are later going to split into 'training' and 'testing'. The validation data 'val' (from pml-testing.csv) is going to be untouched till the last phase.
+
+```{r loaddata}
+tr <- read.csv('pml-training.csv')
+val <- read.csv('pml-testing.csv')
+```
+
+We take a look at how big is the 'tr' dataset.
+
+```{r trdata}
+dim(tr)
+```
+
+... which shows it is compiled of 19622 records of 160 variables. We take a look at the 'classe' variable which we have to predict
+
+```{r classe}
+summary(tr$classe)
+```
+
+It is a factor of 5 levels A, B, C, D and E. We now try to visualise relations between the variables. We check for NA values in the set
+
+```{r}
+sum(is.na(tr))
+```
+
+We need to impute these NA values by K nearest eighbours algorithm
+
+```{r impute, eval=FALSE}
+preProcValues <- preProcess(tr, method = c("knnImpute","center","scale"))
+tr_processed <- predict(preProcValues, tr)
+sum(is.na(tr_processed))
+```
+
+We use readings from accelometers in the belt , forearm, arm and dumbbell; we segregate these variables
+
+```{r accelnames}
+tr_processed= tr
+names(tr_processed)[grep("accel",names(tr_processed))]
+ta <- names(tr_processed)[grep("^total_accel",names(tr_processed))]
+```
+We now plot total accels against each other
+
+```{r plottingpredictors}
+featurePlot(x = tr_processed[,ta],y=tr$classe,plot='pairs')
+
+```
+Since the total_accels in each recorder do not show any correlation with each other, we can assume them to be independent variables, and use them as predictors.
+
+```{r partition}
+set.seed(107)
+inTrain <- createDataPartition(
+  y = tr_processed$classe,
+  p = .75,
+  list = FALSE
+)
+training <- tr_processed[ inTrain,]
+testing  <- tr_processed[-inTrain,]
+nrow(training)
+nrow(testing)
+```
+
+We now train a KNN based model from the dataset and predict values from testing set
+
+```{r trn, eval=FALSE}
+val_acc <- val[,ta]
+model_knn <- knn3(classe ~ .,data=training,k=3)
+pt_k <- predict(model_knn, testing, type='class')
+summary(testing$classe == pt_k)
+```
+
+We then apply the model to the valuation set
+```{r val,eval=FALSE}
+pv_k <- predict(model_knn,val_acc,type='class')
+pv_k
+```
+
+Which outputs E B E B E B B B E E E B E E B E E E B B for the 20 entries in val dataset.
